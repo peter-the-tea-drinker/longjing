@@ -1,6 +1,5 @@
-.DS_Store
-.pyc
+*.DS_Store
+*.pyc
 dist
 build
 longjing.egg-info
-
