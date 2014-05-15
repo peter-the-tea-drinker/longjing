@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+      <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Longjing Example Project</title>
+          <link rel="stylesheet" href="http://yui.yahooapis.com/pure/0.4.2/pure.css">
+          <link rel="stylesheet" href="/static/main.css">
+          <link href="//cdnjs.cloudflare.com/ajax/libs/rainbow/1.2.0/themes/tomorrow-night.css" rel="stylesheet" type="text/css">
+</head>
+<body>
+<div id="layout" class="content pure-g">
+    <div id="nav" class="pure-u">
+      <a href="#" class="primary-button pure-button" data-bind="click: onTime">Function Time</a>
+      <a href="#"><button class="primary-button pure-button" data-bind="click: onCumulative">Cumulative</button></a>
+      <a href="#"><button class="primary-button pure-button" data-bind="click: onCalls">All Calls</button></a>
+      <a href="#"><button class="primary-button pure-button" data-bind="click: onPCalls">Non-Recursive</button></a>
+    </div>
+    <div id="list" class="pure-u-1">
+        <div class="pure-u-1-5">
+        </div>
+
+        <div class="pure-u-3-5">
+            <h1>How not to break the web</h1>
+            <p>This is how to not break the web with Tornado (or any other server-side framework)
+            and a Javascript framework.
+            </p>
+            <ol>
+                <li>Put the JSON into the document, don't force two trips just to get to the home page.</li>
+                <li>Actually fill in the items in the document. It's faster (no waiting for the framework to load), and
+                    it doesn't break the web.</li>
+                <li>Use sensible routes (document centric where you can, then services, then special pages)</li>
+            </ol>
+            <p> I'm using regexes to strip the Tornado markup out of
+            my templates, so I can send them to Knockout.js. That way I only need to maintain one set of templates.</p>
+        <h2>Example - a mock web interface to cProfile</h2>
+        </div>
+        <br>
+        <table class="pure-table">
+        <thead>
+            <tr>
+                <th>Function Name</th>
+                <th>Calls (total / non-recursive)</th>
+                <th>Time (ms)</th>
+                <th>Cumulative (ms)</th>
+                <th>Cumulative / Call (ms)</th>
+                <th>Time / Call (ms)</th>
+                <th>File / Line</th>
+            </tr>
+        </thead>
+        <!--
+        Here, we load in python-generated templates. The javascript framework
+        will eventually replace them, but we don't want to rely on javascript.
+        -->
+        <tbody data-bind='template: { name: displayMode, foreach: ($.map(sort_order(),function(id){return stats[id]})) }'>
+        {% for item in items%}
+            {% module Stat(item)%}
+        {%end%}
+        </tbody>
+        </table>
+    </div>
+</div>
+<script type="text/html" id="stat">
+{% module KOTemplate('stat.html') %}
+</script>
+<script type="text/javascript" src="//cdnjs.cloudflare.com/ajax/libs/jquery/2.1.1/jquery.min.js"></script>
+<script type="text/javascript" src="//cdnjs.cloudflare.com/ajax/libs/knockout/3.1.0/knockout-min.js"></script>
+<script type="text/javascript" src="//cdnjs.cloudflare.com/ajax/libs/rainbow/1.2.0/js/rainbow.min.js"></script>
+<script type="text/javascript" src="//cdnjs.cloudflare.com/ajax/libs/rainbow/1.2.0/js/language/generic.js"></script>
+<script type="text/javascript" src="//cdnjs.cloudflare.com/ajax/libs/rainbow/1.2.0/js/language/python.js"></script>
+<script type="text/javascript" src="//cdnjs.cloudflare.com/ajax/libs/rainbow/1.2.0/js/language/javascript.js"></script>
+<script type="text/javascript" src="//cdnjs.cloudflare.com/ajax/libs/rainbow/1.2.0/js/language/html.js"></script>
+
+<script>
+    var modelDict = {};
+
+    function StatViewModel(e){
+        this.sid = e.sid;
+        this.n_calls = e.n_calls;
+        this.p_calls = e.p_calls;
+        this.cumtime = e.cumtime;
+        this.percall_c = e.percall_c;
+        this.percall_f = e.percall_f;
+        this.tottime = e.tottime;
+        this.filename = e.filename
+        this.line = e.line;
+        this.name = e.name;
+        this.func_src = e.func_src;
+        this.callers = e.callers;
+        var mode = e.mode;
+        if (mode !='detail')
+        {
+            mode = 'summary';
+        }
+        this.mode = ko.observable(mode);
+
+        var self=this;
+
+        this.toggleDetail = function(){
+            if (self.mode()=='summary')
+            {
+                self.mode('detail');
+                Rainbow.color();
+            }
+            else
+            {
+                self.mode('summary');
+            }
+        }
+
+        this.template = ko.observable('stat')
+        return self;
+
+    };
+    modelDict['stat'] = StatViewModel;
+
+    function ViewModel(e){
+        // If you don't use "new", all the models will be clones of each other.
+        return new modelDict[e.schema](e);
+    };
+
+    function WebmailViewModel() {
+        // data
+        displayMode = function(item) {
+            return item.template();
+        }
+        this.stats = {};
+        var obj = this.stats;
+        $.map({% raw itemsJSON%},function(e){
+            var model = ViewModel(e);
+            obj[model.sid] = model;
+        })
+
+        this.cumulativeJSON = {% raw cumulativeJSON %};
+        this.timeJSON = {% raw timeJSON %};
+        this.callsJSON = {% raw callsJSON %};
+        this.pcallsJSON = {% raw pcallsJSON %};
+
+        this.sort_order = ko.observableArray(this.timeJSON)
+        var self=this;
+        onTime = function(){
+            self.sort_order(self.timeJSON);
+        }
+        onCalls = function(){
+            self.sort_order(self.callsJSON);
+        }
+        onCumulative = function(){
+            self.sort_order(self.cumulativeJSON);
+        }
+        onPCalls = function(){
+            self.sort_order(self.pcallsJSON);
+        }
+    };
+    ko.applyBindings(new WebmailViewModel())
+    Rainbow.color();
+</script>
+</body>
+</html>

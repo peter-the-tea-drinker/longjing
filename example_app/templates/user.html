@@ -1,0 +1,30 @@
+<div class = "user {{mode}} item pure-g" data-bind="css: mode" itemscope itemtype="http://schema.org/Person">
+    <div class="pure-u">
+        <a href = "/users/{{uid}}" data-bind="attr: {href: ('/users/'+uid)}, text: (name()+'\'s profile')">{{name}}'s profile</a>
+        <p itemprop="name" data-bind="text: name, click: toggleDetail">{{name}}</p>
+        <img itemprop="image" src="{{image}}" title="{{name}}" data-bind="attr: { src: image, title: name }"></img>
+        <p itemprop="description" data-bind="text: description">{{description}}</p>
+        <p data-bind="text: content">{{content}}</p>
+        <div data-bind='if: can_edit && (mode()=="detail")'>
+            {%if can_edit and (mode=='detail') %}
+                <button data-bind='click: startEdit'>Edit</button>
+            {% end %}
+        </div>
+        <div data-bind='if: can_edit && (mode()=="edit")'>
+            {%if can_edit and (mode=='edit') %}
+                <form class="pure-form pure-form-stacked" data-bind="submit: submitEdit">
+                    <button data-bind='click: cancelEdit'>Cancel</button>
+                    <label for="name">Your Name</label>
+                    <input id="name" itemprop="name" type="text" data-bind='value: name, valueUpdate: "afterkeydown"'>{{name}}</input>
+                    <label for="image">Image</label>
+                    <input itemprop="image" type="text" data-bind='value: image, valueUpdate: "afterkeydown"'>{{value}}</input>
+                    <label for="description">A short description of you</label>
+                    <input itemprop="description" type="text" data-bind='value: description, valueUpdate: "afterkeydown"'>{{description}}</input>
+                    <label for="description">More about you</label>
+                    <input type="text" data-bind='value: content, , valueUpdate: "afterkeydown"'>{{content}}</input>
+                    <button type="submit">Submit</button>
+                </form>
+            {% end %}
+        </div>
+    </div>
+</div>

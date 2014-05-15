@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+      <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Longjing Example Project</title>
+          <link rel="stylesheet" href="http://yui.yahooapis.com/pure/0.4.2/pure.css">
+          <link href="//cdnjs.cloudflare.com/ajax/libs/rainbow/1.2.0/themes/tomorrow-night.css" rel="stylesheet" type="text/css">
+</head>
+<body>
+<div class="content pure-g" style="max-width:80em">
+    <div class="pure-u-1-5">
+    </div>
+    <div class="pure-u-3-5">
+        <h1>How not to break the web</h1>
+        <p>This is how to not break the web with Tornado (or any other server-side framework)
+        and a Javascript framework.
+        <h2>Writing a front-end for Python's profiler</h2>
+        <p>If you're writing a web front-end to view stats from cProfile, how
+            would you do it efficiently?</p>
+        <h2>A rough overview of Javascript frameorks</h2>
+        <p>Millions of people
+        might be viewing your stat dumps, because it's the next big thing,
+        so we don't want to send a whole page every time they drill down to a single entry.
+            We can just send the relevant data, like this:
+    <pre><code data-language="javascript">
+// this has been bound to a link on "expand this stat"
+this.toggleDetail = function(){
+if (self.mode()=='summary')
+{
+    // we want to expand it
+
+    // get the function source from the server
+    $.getJSON("/stats/"+this.stat_id, function(data) {
+
+        // now update the element
+        this.func_src(data);
+
+        // and change the style (maybe change its CSS class)
+        self.mode('detail');
+
+        // tell your syntax highlighter to get to work
+        Rainbow.color();
+}
+else
+{
+    // change the style, so you can't see the source
+    self.mode('summary');
+    }
+     </code></pre>
+     <p>I'm using knockout.js, but they are pretty similar. Knockout has
+         a more colorful home page, with nice online tutorials. Backbone looks a little more
+         serious. Y.App is bascially a clone of Backbone, but it's Yahoo, so the cool
+         kids might want to stay away. React.js is kind of fashionable now.
+         But they all solve pretty similar problems in largely similar ways.
+    </p>
+    <h2>Templates</h2>
+    <p>
+    To re-draw your node, Knockout (or Angular, or any other framework) needs
+    a template. It might look something like this:
+    </p>
+    <pre><code data-language="html">
+&lt;!-- put the template in a special container, and give it a memorabel id: --&gt;
+&lt;script type=&quot;text/html&quot; id=&quot;stat&quot;&gt;
+
+// use &quot;data-bind&quot; to tell knockout to template stuff in
+&lt;tr class = &quot;stat &quot; data-bind=&quot;css: mode&quot;&gt;
+&lt;td&gt;&lt;a href = &quot;#&quot; data-bind=&quot;text: name, click:toggleDetail&quot;&gt;&lt;/a&gt;&lt;/td&gt;
+&lt;td data-bind=&quot;text: (n_calls+'/'+p_calls)&quot;&gt;/&lt;/td&gt;
+&lt;td data-bind=&quot;text: tottime&quot;&gt;&lt;/td&gt;
+&lt;td data-bind=&quot;text: cumtime&quot;&gt;&lt;/td&gt;
+&lt;td data-bind=&quot;text: percall_c&quot;&gt;&lt;/td&gt;
+&lt;td data-bind=&quot;text: percall_f&quot;&gt;&lt;/td&gt;
+&lt;td data-bind=&quot;text: (filename+':'+line)&quot;&gt;:&lt;/td&gt;
+&lt;/tr&gt;
+
+// conditionally, expand it, to include extra stff:
+&lt;!-- ko if: (mode()=='detail') --&gt;
+&lt;tr&gt;
+&lt;td colspan=&quot;100%&quot;&gt;
+    &lt;pre&gt;&lt;code data-language=&quot;python&quot; data-bind=&quot;text: func_src&quot;&gt;
+&lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;!-- /ko --&gt;
+&lt;/script&gt;
+    </code></pre>
+    <h2>Now you have two problems!</h2>
+    <p>Now that Javascript is doing all the heavy lifting, why write a UIModule in
+        Tornado? You can just load all the items in via JSON, and there's no risk
+        of getting them out of sync.</p>
+    <p>Unfortunately, this is bad for people who don't run Javascript, as they
+        will just get an empty box. Worse, anyone with a slow connection will have
+        to download your page, download your JS framework, and the download your JSON
+        before they can see what's on your page. This is why so many sites these
+        days take forever to load their actual content.</p>
+    <h2>The Solution</h2>
+    <p>It's not 1995. Server-only web apps just aren't an option. But we don't
+        want Javascript to be the Flash of the 2010s. So here's what we do:</p>
+    <h3>First, put the data in the page</h3>
+    <p>At the very least, inline any data you are going to send in the page,
+        so your readers won't need three requests (your page, the JS framework,
+        then the data you were keeping from them) just to see your page:
+            <pre><code data-language="javascript">
+var obj = this.stats;
+$.map({ % raw itemsJSON%},function(e){
+var model = ViewModel(e);
+obj[model.sid] = model;
+})</code></pre>
+It's still horrible, but at least it won't be so damn slow.
+    <h3>Template the data into your page</h3>
+    <p>You can maintian two sets of templates. This project uses regexes to strip out
+    Tornado-centric bits from the template, so it can be passed straight to Knockout (or Angular, I suppose).
+    Y.App's micro templates can be modified, so you could probably get them to work in a similar way to Tornado templates,
+    as long as you didn't want to do anything too fancy. It's really not that hard.</p>
+    <h3>Keep fancy logic out of the templates.</h3>
+    Keeping two templates in sync is hard. Keeping them in sync when you are doing anything fancy is a nightmare.
+    It's best to put the layout code in CSS, do any fancy logic before sending it to the template.</p>
+    <pre><code data-language="html">
+&lt;!-- tornado and knockout.js templates - the tornado bits can be taken out with a simple regex --&gt;
+&lt;tr class = &quot;stat {{mode}}&quot; data-bind=&quot;css: mode&quot;&gt;
+&lt;td&gt;&lt;a href = &quot;#&quot; data-bind=&quot;text: name, click:toggleDetail&quot;&gt;{{name}}&lt;/a&gt;&lt;/td&gt;
+&lt;td data-bind=&quot;text: (n_calls+'/'+p_calls)&quot;&gt;{{n_calls}}/{{p_calls}}&lt;/td&gt;
+&lt;td data-bind=&quot;text: tottime&quot;&gt;{{tottime}}&lt;/td&gt;
+&lt;td data-bind=&quot;text: cumtime&quot;&gt;{{cumtime}}&lt;/td&gt;
+&lt;td data-bind=&quot;text: percall_c&quot;&gt;{{percall_c}}&lt;/td&gt;
+&lt;td data-bind=&quot;text: percall_f&quot;&gt;{{percall_f}}&lt;/td&gt;
+&lt;td data-bind=&quot;text: (filename+':'+line)&quot;&gt;{{filename}}:{{line}}&lt;/td&gt;
+&lt;/tr&gt;
+{%if (mode=='detail') %}
+&lt;!-- ko if: (mode()=='detail') --&gt;
+&lt;tr&gt;
+    &lt;td colspan=&quot;100%&quot;&gt;
+        &lt;pre&gt;&lt;code data-language=&quot;python&quot; data-bind=&quot;text: func_src&quot;&gt;
+        {{func_src}}
+    &lt;/code&gt;&lt;/pre&gt;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;!-- /ko --&gt;
+{% end %}
+</code></pre>
+
+<p>
+    Finally, use good routes. "REST" gets a bad rap - it's about resources, not just
+    documents. Documents are good, but not every resource is a document.
+    I learnt two things from learning Scala - firstly, how to structure URL schemes. Secondly, never
+    work with a framework that takes about 30 seconds to re-compile your project, and crashes if you've got Eclipse
+    hogging all your memory, at least, not if your laptop has only 2G of RAM.
+    <pre><code data-language="python">
+routes = [
+# individual models / documents:
+('/func/([0-9]+)', FuncHandler), # gets data on a function call
+
+# services (no, not everything needs to be documents)
+('/sort/(.*)', SortedStatsHander), # gets a list of stats, sorted by some criterea
+
+# index, special handlers
+('/',IndexHandler),
+('/login',LoginHandler),
+('/logout',LogoutHandler)
+]
+</code></pre>
+
+</p>
+</div>
+</div>
+<script type="text/javascript" src="//cdnjs.cloudflare.com/ajax/libs/jquery/2.1.1/jquery.min.js"></script>
+<script type="text/javascript" src="//cdnjs.cloudflare.com/ajax/libs/rainbow/1.2.0/js/rainbow.min.js"></script>
+<script type="text/javascript" src="//cdnjs.cloudflare.com/ajax/libs/rainbow/1.2.0/js/language/generic.js"></script>
+<script type="text/javascript" src="//cdnjs.cloudflare.com/ajax/libs/rainbow/1.2.0/js/language/javascript.js"></script>
+<script type="text/javascript" src="//cdnjs.cloudflare.com/ajax/libs/rainbow/1.2.0/js/language/html.js"></script>
+<script type="text/javascript">
+Rainbow.color();
+</script>
+</body>

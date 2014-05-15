@@ -1,0 +1,11 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge">
+    <title>tornado browserid example</title>
+  </head>
+  <body>
+    <a href="javascript:loginBrowserID()"><img src="{{ static_url('persona-only-signin-link.png')}}" alt="Log In"></a>
+    {%module BrowserID_form()%}
+  </body>
+</html>

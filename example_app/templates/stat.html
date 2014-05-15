@@ -1,0 +1,19 @@
+<tr class = "stat {{mode}}" data-bind="css: mode">
+<td><a href = "#" data-bind="text: name, click:toggleDetail">{{name}}</a></td>
+<td data-bind="text: (n_calls+'/'+p_calls)">{{n_calls}}/{{p_calls}}</td>
+<td data-bind="text: tottime">{{tottime}}</td>
+<td data-bind="text: cumtime">{{cumtime}}</td>
+<td data-bind="text: percall_c">{{percall_c}}</td>
+<td data-bind="text: percall_f">{{percall_f}}</td>
+<td data-bind="text: (filename+':'+line)">{{filename}}:{{line}}</td>
+</tr>
+{%if (mode=='detail') %}
+<!-- ko if: (mode()=='detail') -->
+<tr>
+    <td colspan="100%">
+        <pre><code data-language="python" data-bind="text: func_src">
+        {{func_src}}
+    </code></pre></td>
+</tr>
+<!-- /ko -->
+{% end %}
