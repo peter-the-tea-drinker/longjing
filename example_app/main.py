@@ -1,4 +1,5 @@
 #/usr/bin/env python
+# -*- coding: latin-1 -*-
 
 from __future__ import print_function
 
@@ -6,7 +7,8 @@ import tornado.web
 import ui_modules
 import os
 import cProfile
-from find_similar_files_slow import find_similar_files
+from find_similar_files import find_similar_files
+import re
 
 import cProfile, pstats, StringIO
 pr = cProfile.Profile()
@@ -19,9 +21,20 @@ stats = pstats.Stats(pr, stream=s)
 from profile import Profile
 import os
 
-func_to_source = {}
+pat = re.compile(r'^(\s*def\s)|(.*(?<!\w)lambda(:|\s))|^(\s*@)')
+def get_source_from_func(filename,first_line_num):
+    import inspect
+    import pdb
+    #pdb.set_trace()
+    lines = inspect.linecache.getlines(filename)
+    lnum = first_line_num - 1
+    while lnum > 0:
+        if pat.match(lines[lnum]): break
+        lnum = lnum - 1
+    return '\n'.join(inspect.getblock(lines[lnum:]))
 
-
+'''
+# old method, not used?
 def trace_dispatch(frame, event, arg):
     if event == 'call':
         import inspect
@@ -36,7 +49,7 @@ import sys
 sys.setprofile(trace_dispatch)
 print('getting source (slow)')
 find_similar_files('main.py', os.getcwd(), 5, '*', SLOW=True)
-sys.setprofile(None)
+sys.setprofile(None)'''
 
 
 class Handler(tornado.web.RequestHandler):
@@ -60,7 +73,7 @@ class Handler(tornado.web.RequestHandler):
             tottime = tt*1000 # total time
             filename, line, name = func
             try:
-                func_src = func_to_source[func]
+                func_src = get_source_from_func(filename,line)
                 json_encode(func_src) # just in case there's any errors (Unicode?)
             except:
                 func_src = '#no source found'

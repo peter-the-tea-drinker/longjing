@@ -1,40 +1,28 @@
 <!DOCTYPE html>
 <html lang="en">
-      <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>Longjing Example Project</title>
-          <link rel="stylesheet" href="http://yui.yahooapis.com/pure/0.4.2/pure.css">
-          <link rel="stylesheet" href="/static/main.css">
-          <link href="//cdnjs.cloudflare.com/ajax/libs/rainbow/1.2.0/themes/tomorrow-night.css" rel="stylesheet" type="text/css">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>How not to break the web, an example</title>
+<link rel="stylesheet" href="http://yui.yahooapis.com/pure/0.4.2/pure.css">
+<link rel="stylesheet" href="/static/main.css">
+<link href="//cdnjs.cloudflare.com/ajax/libs/rainbow/1.2.0/themes/tomorrow-night.css" rel="stylesheet" type="text/css">
 </head>
 <body>
 <div id="layout" class="content pure-g">
-    <div id="nav" class="pure-u">
-      <a href="#" class="primary-button pure-button" data-bind="click: onTime">Function Time</a>
-      <a href="#"><button class="primary-button pure-button" data-bind="click: onCumulative">Cumulative</button></a>
-      <a href="#"><button class="primary-button pure-button" data-bind="click: onCalls">All Calls</button></a>
-      <a href="#"><button class="primary-button pure-button" data-bind="click: onPCalls">Non-Recursive</button></a>
+<div id="nav" class="pure-u">
+<a href="#" class="primary-button pure-button" data-bind="click: onTime">Function Time</a>
+<a href="#"><button class="primary-button pure-button" data-bind="click: onCumulative">Cumulative</button></a>
+<a href="#"><button class="primary-button pure-button" data-bind="click: onCalls">All Calls</button></a>
+<a href="#"><button class="primary-button pure-button" data-bind="click: onPCalls">Non-Recursive</button></a>
+<a href="/static/why.html">What I'm doing</a>
+<a href="https://github.com/peter-the-tea-drinker/longjing/tree/master/example_app">Source on Github</a>
+</div>
+<div id="list" class="pure-u-1">
+    <div class="pure-u-1-5">
     </div>
-    <div id="list" class="pure-u-1">
-        <div class="pure-u-1-5">
-        </div>
-
-        <div class="pure-u-3-5">
-            <h1>How not to break the web</h1>
-            <p>This is how to not break the web with Tornado (or any other server-side framework)
-            and a Javascript framework.
-            </p>
-            <ol>
-                <li>Put the JSON into the document, don't force two trips just to get to the home page.</li>
-                <li>Actually fill in the items in the document. It's faster (no waiting for the framework to load), and
-                    it doesn't break the web.</li>
-                <li>Use sensible routes (document centric where you can, then services, then special pages)</li>
-            </ol>
-            <p> I'm using regexes to strip the Tornado markup out of
-            my templates, so I can send them to Knockout.js. That way I only need to maintain one set of templates.</p>
-        <h2>Example - a mock web interface to cProfile</h2>
-        </div>
+    <div class="pure-u-3-5">
+    </div>
         <br>
         <table class="pure-table">
         <thead>

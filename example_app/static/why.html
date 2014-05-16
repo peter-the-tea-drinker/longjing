@@ -3,7 +3,7 @@
       <head>
           <meta charset="utf-8">
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>Longjing Example Project</title>
+          <title>How not to break the web</title>
           <link rel="stylesheet" href="http://yui.yahooapis.com/pure/0.4.2/pure.css">
           <link href="//cdnjs.cloudflare.com/ajax/libs/rainbow/1.2.0/themes/tomorrow-night.css" rel="stylesheet" type="text/css">
 </head>
@@ -13,12 +13,13 @@
     </div>
     <div class="pure-u-3-5">
         <h1>How not to break the web</h1>
+        <a href="/pages/longjing-exmple.html">Example</a>
         <p>This is how to not break the web with Tornado (or any other server-side framework)
         and a Javascript framework.
         <h2>Writing a front-end for Python's profiler</h2>
         <p>If you're writing a web front-end to view stats from cProfile, how
             would you do it efficiently?</p>
-        <h2>A rough overview of Javascript frameorks</h2>
+        <h2>A rough overview of Javascript frameworks</h2>
         <p>Millions of people
         might be viewing your stat dumps, because it's the next big thing,
         so we don't want to send a whole page every time they drill down to a single entry.
@@ -50,9 +51,9 @@ else
      </code></pre>
      <p>I'm using knockout.js, but they are pretty similar. Knockout has
          a more colorful home page, with nice online tutorials. Backbone looks a little more
-         serious. Y.App is bascially a clone of Backbone, but it's Yahoo, so the cool
+         serious. Y.App is basically the same as Backbone, but it's Yahoo, so the cool
          kids might want to stay away. React.js is kind of fashionable now.
-         But they all solve pretty similar problems in largely similar ways.
+         But they all solve pretty similar problems in largely similar ways - keeping the DOM in sync with data.
     </p>
     <h2>Templates</h2>
     <p>
@@ -60,10 +61,10 @@ else
     a template. It might look something like this:
     </p>
     <pre><code data-language="html">
-&lt;!-- put the template in a special container, and give it a memorabel id: --&gt;
+&lt;!-- put the template in a special container, and give it a memorable id: --&gt;
 &lt;script type=&quot;text/html&quot; id=&quot;stat&quot;&gt;
 
-// use &quot;data-bind&quot; to tell knockout to template stuff in
+&lt;!--  use &quot;data-bind&quot; to tell knockout to fill the data in --&gt;
 &lt;tr class = &quot;stat &quot; data-bind=&quot;css: mode&quot;&gt;
 &lt;td&gt;&lt;a href = &quot;#&quot; data-bind=&quot;text: name, click:toggleDetail&quot;&gt;&lt;/a&gt;&lt;/td&gt;
 &lt;td data-bind=&quot;text: (n_calls+'/'+p_calls)&quot;&gt;/&lt;/td&gt;
@@ -90,14 +91,14 @@ else
         of getting them out of sync.</p>
     <p>Unfortunately, this is bad for people who don't run Javascript, as they
         will just get an empty box. Worse, anyone with a slow connection will have
-        to download your page, download your JS framework, and the download your JSON
+        to download your page, download your JS framework, and then download your JSON
         before they can see what's on your page. This is why so many sites these
         days take forever to load their actual content.</p>
     <h2>The Solution</h2>
     <p>It's not 1995. Server-only web apps just aren't an option. But we don't
         want Javascript to be the Flash of the 2010s. So here's what we do:</p>
     <h3>First, put the data in the page</h3>
-    <p>At the very least, inline any data you are going to send in the page,
+    <p>At the very least, inline the data the user requested,
         so your readers won't need three requests (your page, the JS framework,
         then the data you were keeping from them) just to see your page:
             <pre><code data-language="javascript">
@@ -107,11 +108,14 @@ var model = ViewModel(e);
 obj[model.sid] = model;
 })</code></pre>
 It's still horrible, but at least it won't be so damn slow.
-    <h3>Template the data into your page</h3>
-    <p>You can maintian two sets of templates. This project uses regexes to strip out
+    <h3>Put the data into your page as plain HTML</h3>
+    <p>You can maintian two sets of templates. My project uses regexes to strip out
     Tornado-centric bits from the template, so it can be passed straight to Knockout (or Angular, I suppose).
     Y.App's micro templates can be modified, so you could probably get them to work in a similar way to Tornado templates,
     as long as you didn't want to do anything too fancy. It's really not that hard.</p>
+    <p>You could probably extract the data from the HTML, to save inlining it as JSON too, but that would be
+        difficult and could get very brittle.
+    </p>
     <h3>Keep fancy logic out of the templates.</h3>
     Keeping two templates in sync is hard. Keeping them in sync when you are doing anything fancy is a nightmare.
     It's best to put the layout code in CSS, do any fancy logic before sending it to the template.</p>
@@ -141,9 +145,8 @@ It's still horrible, but at least it won't be so damn slow.
 <p>
     Finally, use good routes. "REST" gets a bad rap - it's about resources, not just
     documents. Documents are good, but not every resource is a document.
-    I learnt two things from learning Scala - firstly, how to structure URL schemes. Secondly, never
-    work with a framework that takes about 30 seconds to re-compile your project, and crashes if you've got Eclipse
-    hogging all your memory, at least, not if your laptop has only 2G of RAM.
+    I learnt two big things from learning Scala - firstly, how to structure URL schemes. Secondly,
+    don't use Eclipse if you have less than 4G of RAM.
     <pre><code data-language="python">
 routes = [
 # individual models / documents:
