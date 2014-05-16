@@ -33,8 +33,7 @@ def find_similar_files(main_file, search_dir, n, criteria, SLOW=False):
                     best_files[0] = (ratio,fname)
                     best_files.sort()
 
-    for (ratio,fname) in best_files[::-1]:
-        print(ratio,fname)
+    return best_files[::-1]
 
 if __name__=='__main__':
     # todo = make this more flexible
