@@ -1,2 +1,2 @@
-import browserID
-import ui_modules
+from . import browserID
+from . import ui_modules

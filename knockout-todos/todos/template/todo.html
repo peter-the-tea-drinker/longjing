@@ -1,0 +1,23 @@
+<tr data-bind="ifnot: todo.is_edit">
+    <td data-bind="text: todo.is_done_indicator">
+        {{todo.is_done_indicator}}</td>
+    <td ><span data-bind="text: todo.todo_content()+ ' with Knockout!'">
+        {{todo.todo_content}}</span>
+         <a data-bind="attr: { href: todo.url}"
+             href="/todos/{{todo.todo_id}}">(edit)</a>
+     </td>
+</tr>
+{% if todo.todo_state =='todo_edit' %}
+<tr data-bind="if: todo.is_edit">
+    <td><input name="todo_is_done" type="checkbox" {{todo.checked_attr}}
+        data-bind="checked: todo.todo_is_done"></td>
+    <td>
+        <input name="todo_content" type="text" class="pure-input-2-3"
+        placeholder="What do you need to do?"
+        value="{{todo.todo_content}}"
+        data-bind="value: todo.todo_content, valueUpdate: 'afterkeydown'">
+        <button type="submit"
+            class="pure-button pure-button-primary">Update</button>
+    </td>
+</tr>
+{% end %}

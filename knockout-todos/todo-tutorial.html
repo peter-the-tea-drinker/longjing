@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="en">
+      <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Part 1 - Hello Tornado</title>
+          <link rel="stylesheet" href="http://yui.yahooapis.com/pure/0.4.2/pure.css">
+          <link href="//cdnjs.cloudflare.com/ajax/libs/prism/0.0.1/prism.min.css" rel="stylesheet" type="text/css">
+<style>
+pre[class*=language-]>code[data-language] {
+overflow: scroll;
+max-height: 55em;
+display: block;
+}
+div{
+    padding:1em;
+}
+p, ol{max-width:38em;}
+</style>
+</head>
+<body>
+<div>
+    <div class="pure-g">
+    <div id="menu" class="pure-u-1 pure-menu pure-menu-open" style="padding:1em">
+        <ul>
+            <li><a class="pure-menu-heading" href="#overview">Overview</a></li>
+            <li><a class="pure-menu-heading" href="#tornado">Tornado Server</a></li>
+            <li><a href="#tornado-todo-list">Todo List Handler</a></li>
+            <li><a href="#tornado-todo">Todo Handler</a></li>
+            <li><a href="#tornado-search">Search Handler</a></li>
+            <li><a href="#tornado-app">URLS and Application</a></li>
+            <li><a href="#tornado-modules">UI Modules</a></li>
+            <li><a class="pure-menu-heading" href="#templates">Templates</a></li>
+            <li><a href="#templates-todo">Todo Template</a></li>
+            <li><a href="#templates-base">Base Template</a></li>
+            <li><a href="#templates-todo-list">Todo List Template</a></li>
+            <li><a class="pure-menu-heading" href="#javascript">Javascript</a></li>
+            <li><a href="#javacript-todo">Todo Object</a></li>
+            <li><a href="#javacript-todo-list-view">Todo List View</a></li>
+            <li><a href="#javacript-todo-list-actions">Todo List Actions</a></li>
+            <li><a href="#javacript-routing">Routing</a></li>
+        </ul>
+    </div>
+    <div class="pure-u-1">
+        <h1 id="overview">Using Knockout and Tornado</h1>
+        <p>First impressions count. It takes three round trips to get your page,
+            the Javascript framework, and the JSON for your page. If you are using Javascript to
+            download more Javascript, it could be four trips.</p>
+        <p>That could be 100s of milliseconds – possibly up to a full
+            second – of latency. Assuming the user's browser can even run
+            your framework.</p>
+        <p>If you are testing on localhost, it might be fast, but for a user
+             on a mobile, or in Australia, or even China, all bets are off.
+             If you want to create a first impression, it is vital reduce
+             this. Here's my solution.</p>
+        <ol>
+            <li>Inline the initial JSON into your document, to
+                cut down one trip.</li>
+            <li>Create the document in the HTML, so you don't have to wait
+                for the Javascript framework, and the page gracefully degrades.</li>
+            <li>Figure out how to combine the Javascript and server templates.
+                In Node.js or Clojure, this would be trivial. It's not so
+                easy in Python, but it can be done, especially with Knockout.js</li>
+        </ol>
+        <p>Better people than me have explained how to use Python, Tornado, and Knockout.js (the
+            tools I will be using). If
+             you have any issues with Python 3, try the <a href="https://docs.python.org/3/tutorial/index.html">
+            official tutorial</a>, and also check out
+            <a href="http://www.tornadoweb.org/en/stable/overview.html">Tornado's overview</a>.
+            I will be a little gentler with Knockout.js, but you should really look at
+            its <a href="http://learn.knockoutjs.com/">official tutorials</a> too.</p>
+        <p>Install Python 3, and tornado (you should use pip, which will be called "pip3" for Python 3).</p>
+        <p>If you can run "python3", then successfully "import tornado", you should be good to go.
+        </p>
+        <h4>Create the files</h4>
+<pre>- project
+---main.py
+---ui_modules.py
+---template
+-----base.html
+-----todo.html
+-----todo-list.html</pre>
+    <p>There are five files - main.py (where the server goes), ui_modules.py
+        (where the modules go), base.html (the HTML boilerplate), todo-list.html
+        (the main HTML and Javascript), and todo.html (the reusable template to render
+        a single todo).
+
+        <h2 id="tornado">Tornado Server</h2>
+        <p>Most of the Python code is in main.py</p>
+<h4>Imports, and the mock ORM class</h4>
+<p>Here are the imports, and a mock ORM class. Todo is a named tuple,
+with two properties.</p><p>Pro tip - putting properties on the objects, not in the
+template code, saves time, because debugging templates is much more difficult than
+debugging pure Python code.</p>
+<pre><code class="language-python"># -*- coding: utf-8 -*-
+
+import tornado.web, tornado.ioloop
+from collections import namedtuple, OrderedDict
+import ui_modules
+from tornado.escape import json_encode
+
+class Todo(namedtuple('Todo',
+           ('todo_id','todo_content',
+           'todo_is_done','todo_state'))):
+    __slots__ = ()
+    @property
+    def is_done_indicator(self):
+        return '✓' if self.todo_is_done else '☐'
+
+    @property
+    def checked_attr(self):
+        return  'checked' if self.todo_is_done else ''</code></pre>
+<h4>Create a mock database</h4>
+<p>The mock database (an OrderedDict) contains all the todos.</p>
+<pre><code class="language-python">todo_database = OrderedDict()
+for i in range(1,10):
+    todo_content = 'Todo Number %i'%i
+    todo_is_done = bool(i%2) # alternate True / False
+    todo_database[i]=Todo(i,todo_content, todo_is_done, 'todo_get')</code></pre>
+<h4>Create a base class for the handlers</h4>
+<p>This base handler has a property to determine whether requests are ajax.
+The Handlers will need to decide whether to send HTML or JSON, based on
+whether or not the request is ajax.</p>
+<pre><code class="language-python">class BaseHandler(tornado.web.RequestHandler):
+    @property
+    def is_ajax(self):
+        if &quot;X-Requested-With&quot; in self.request.headers:
+            x_requested_with = self.request.headers['X-Requested-With']
+            if x_requested_with == &quot;XMLHttpRequest&quot;:
+                return True
+        return False</code></pre>
+
+<h3 id="tornado-todo-list">Todo List Handler</h3>
+
+<p>The "get" method of TodoListHandler gets all the todos from the "database".
+    It either renders them into HTML, or returns them as JSON. The JSON structure
+    is a hash containing a list, not a raw list, because Tornado does not allow
+    naked JSON lists to be sent (for security reasons).</p>
+
+<pre><code class="language-python">class TodoListHandler(BaseHandler):
+    def get(self):
+        todos = todo_database.values()
+        if self.is_ajax:
+            self.content_type = 'application/json'
+            result = {'todos':[todo._asdict() for todo in todos]}
+            return self.finish(result)
+        todosJSON = json_encode([todo._asdict() for todo in todos])
+        self.render('todo-list.html', todos = todos,
+                    todosJSON=todosJSON)</code></pre>
+
+<p>Posting to TodoListHandler will add a new todo to the "database", then return
+    the updated list of all todos.</p>
+
+<pre><code class="language-python">    def post(self):
+        new_content = self.get_argument('todo_content','')
+        new_is_done = self.get_argument('todo_is_done',False)
+        i= len(todo_database)+1
+        updated_todo = Todo(i, new_content, new_is_done, 'todo_get')
+        todo_database[i]=updated_todo
+        return self.get()</code></pre>
+
+
+<h3 id="tornado-todo">Todo Handler</h3>
+<p>Getting a single todo will return that single todo, with a flag ('todo_state') set
+    to enable editing. There is no ajax response, because the app does not
+    use it. There would be an ajax response if viewing a single todo
+    in the single-page application was nessessary (for example, viewing a user profile).</p>
+<p>To keep the templates simple, I am only using one template (todo-list.html), and
+    rendering it with a single todo object when viewing a single todo.</p>
+<pre><code class="language-python">class TodoHandler(BaseHandler):
+    def get(self, todo_id):
+        i = int(todo_id)
+        todo = todo_database.get(i,None)
+        if not todo:
+            raise tornado.web.HTTPError(404)
+        editable_todo = todo._asdict()
+        editable_todo['todo_state'] = 'todo_edit'
+        editable_todo = Todo(**editable_todo)
+        self.render('todo-list.html', todos = [editable_todo],
+                    todosJSON=json_encode([editable_todo._asdict()]))</code></pre>
+<p>Posting to a single todo will update that record in the database, then redirect
+    to the main page (if it is a standard post), or return the full list of
+    todos (if it is ajax).</p>
+<pre><code class="language-python">    def post(self, todo_id):
+        i = int(todo_id)
+        todo = todo_database.get(i,None)
+        if not todo:
+            raise tornado.web.HTTPError(404)
+        new_content = self.get_argument('todo_content','')
+        new_is_done = self.get_argument('todo_is_done',False)
+        updated_todo = Todo(i, new_content, new_is_done, 'todo_get')
+        todo_database[i]=updated_todo
+        if self.is_ajax:
+            self.content_type = 'application/json'
+            todos = todo_database.values()
+            result = {'todos':[todo._asdict() for todo in todos]}
+            return self.finish(result)
+        else:
+            self.redirect('/todos/')</code></pre>
+<h3 id="tornado-search">Search Handler</h3>
+<p>Searching will return the todos that contain the query text.</p>
+<pre><code class="language-python">class SearchHandler(BaseHandler):
+    def get(self):
+        query = self.get_argument('query','')
+        query = query.lower()
+        todos = todo_database.values()
+        todos = [t for t in todos if query in t.todo_content.lower()]
+        result = [todo._asdict() for todo in todos]
+        if self.is_ajax:
+            self.content_type = 'application/json'
+            return self.finish({'todos':result})
+        self.render('todo-list.html', todos = todos,
+                    todosJSON=json_encode(result))</code></pre>
+<h3 id="tornado-app">URLS and Application</h3>
+<p>"urls" is a list mapping the urls to the handlers.</p>
+<pre><code class="language-python">urls = [
+    # services
+    ('/',TodoListHandler),
+    ('/todos/',TodoListHandler),
+    ('/search/', SearchHandler),
+
+    # models
+    ('/todos/([0-9]+)',TodoHandler)
+]</code></pre>
+<p>The application is initialised by the url list, the template path (the directory
+    where template files are kept), and the ui_modles (which are used by the templates).
+    A full app would also have a static path, a cookie secret, xsrf_cookies, and so on.</p>
+<p>I also add verbose debugging, logged to standard out, and then listen on port 8888.</p>
+<pre><code class="language-python">application = tornado.web.Application(
+    urls,
+    template_path = './template',
+    ui_modules = ui_modules,
+    debug=True
+    )
+
+import tornado.log, sys, logging
+tornado.log.access_log.addHandler(logging.StreamHandler(sys.stdout))
+tornado.log.access_log.setLevel(logging.DEBUG)
+
+application.listen(8888)
+tornado.ioloop.IOLoop.instance().start()</code></pre>
+
+<h3 id="tornado-modules">UI Modules</h3>
+<p>UI Modules help write modular and reusable parts in the templates. To
+    render a todo in a template using the Todo module, you use {% module Todo(todo) %}.</p>
+<p>The Todo module will render a single todo within a larger template,
+    using the '/templates/todo.html' as the todo template.</p>
+<pre><code class="language-python">import tornado.web
+import re, os
+
+class Todo(tornado.web.UIModule):
+    def render(self,todo):
+        return self.render_string('todo.html',todo=todo)</code></pre>
+
+<p>This module will strip out the tornado markup from a template file, so it
+can be inserted as a Knockout template. This allows you to use one single template
+(with both Tornado and Knockout markup), which makes maintenance easier.</p>
+
+<pre><code class="language-python">class KOTemplate(tornado.web.UIModule):
+    def _get_template_source(self,template_name):
+        from tornado.web import RequestHandler
+        # see UIModule's source
+        template_path = self.handler.get_template_path()
+        if not template_path:
+            frame = sys._getframe(0)
+            web_file = frame.f_code.co_filename
+            while frame.f_code.co_filename == web_file:
+                frame = frame.f_back
+            template_path = os.path.dirname(frame.f_code.co_filename)
+        with RequestHandler._template_loader_lock:
+            if template_path not in RequestHandler._template_loaders:
+                loader = self.create_template_loader(template_path)
+                RequestHandler._template_loaders[template_path] = loader
+            else:
+                loader = RequestHandler._template_loaders[template_path]
+        path = os.path.join(loader.root, template_name)
+        return open(path, &quot;rb&quot;).read().decode('utf8')</code></pre>
+<p>The source of the templated, with Tornado markup removed, is cached for performance
+    reasons.</p>
+<pre><code class="language-python">    _tornado_template_code = re.compile('({%.*?%})|{#(.*?)#}|{{(.*?)}}')
+    _CACHE = {}
+    def render(self,template_name):
+        try:
+            return _CACHE[template_name]
+        except:
+            source = self._get_template_source(template_name)
+            source = self._tornado_template_code.sub('',source)
+            self._CACHE[template_name] = source
+            return source</code></pre>
+
+<h2 id="templates">Templates</h2>
+
+<p>There are three templates in this project. todo.html is the reusable module to render todos.
+base.html is the base html file (which contains the boilerplate html code), and
+todo-list.html is the main template.</p>
+
+<h3 id="templates-todo">Todo Template</h3>
+
+<p>This template is written so that it can be rendered by Tornado, and Knockout
+    (once the Tornado code is stripped out).</p>
+<p>Most of the values that are templated in are properties, because debugging
+    code in templates is very difficult.</p>
+<p>The knockout templates look like 'data-bind=&quot;text: todo.is_done_indicator&quot;',
+    which will replace the value inside that node to whatever the is_done_indicator is.
+    The equivalent in Tornado is '{{todo.is_done_indicator}}'.</p>
+<p>To use Javascript code in knockout, you need to do it slighly differently, for example
+    'data-bind=&quot;text: todo.todo_content()+ ' with Knockout!'&quot;'. Knockout's
+    observed values, computed values, and observed arrays need to be called to get
+    their value.</p>
+
+<pre><code class="language-javascript">&lt;tr data-bind=&quot;ifnot: todo.is_edit&quot;&gt;
+    &lt;td data-bind=&quot;text: todo.is_done_indicator&quot;&gt;
+        {{todo.is_done_indicator}}&lt;/td&gt;
+    &lt;td &gt;&lt;span data-bind=&quot;text: todo.todo_content()+ ' with Knockout!'&quot;&gt;
+        {{todo.todo_content}}&lt;/span&gt;
+         &lt;a data-bind=&quot;attr: { href: todo.url}&quot;
+             href=&quot;/todos/{{todo.todo_id}}&quot;&gt;(edit)&lt;/a&gt;
+     &lt;/td&gt;
+&lt;/tr&gt;</code></pre>
+
+<p>The todo.html template also has a section for editing the todo,
+    which is only displayed if todo.todo_state is 'todo_edit'.</p>
+<pre><code class="language-javascript">{% if todo.todo_state =='todo_edit' %}
+&lt;tr data-bind=&quot;if: todo.is_edit&quot;&gt;
+    &lt;td&gt;&lt;input name=&quot;todo_is_done&quot; type=&quot;checkbox&quot; {{todo.checked_attr}}
+        data-bind=&quot;checked: todo.todo_is_done&quot;&gt;&lt;/td&gt;
+    &lt;td&gt;
+        &lt;input name=&quot;todo_content&quot; type=&quot;text&quot; class=&quot;pure-input-2-3&quot;
+        placeholder=&quot;What do you need to do?&quot;
+        value=&quot;{{todo.todo_content}}&quot;
+        data-bind=&quot;value: todo.todo_content, valueUpdate: 'afterkeydown'&quot;&gt;
+        &lt;button type=&quot;submit&quot;
+            class=&quot;pure-button pure-button-primary&quot;&gt;Update&lt;/button&gt;
+    &lt;/td&gt;
+&lt;/tr&gt;
+{% end %}</code></pre>
+<h3 id="templates-base">Base Template</h3>
+<p>The base template is used by 'todo-list.html', to define the structure
+    of the page and add in boilerplate code.</p>
+<p>The 'todo-list.hmtl' template will insert the title into the sections with
+    the markup '{% block title %}Default Title{% end %}'.
+<pre><code class="language-javascript">&lt;!DOCTYPE html&gt;
+&lt;html lang=&quot;en&quot;&gt;
+&lt;head&gt;
+  &lt;meta charset=&quot;utf-8&quot;&gt;
+  &lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1.0&quot;&gt;
+  &lt;title&gt;{% block title %}Default Title{% end %}&lt;/title&gt;
+  &lt;link rel=&quot;stylesheet&quot;
+      href=&quot;http://yui.yahooapis.com/pure/0.4.2/pure.css&quot;&gt;
+&lt;/head&gt;</code></pre>
+<p>The base template then creates the layout, where the main page is inserted
+    into the {% block todo_list %}Todo List{% end %} part.
+<pre><code class="language-javascript">&lt;body&gt;
+&lt;div class=&quot;content pure-g&quot; style=&quot;max-width:80em&quot;&gt;
+    &lt;div class=&quot;pure-u-1-5&quot;&gt;
+    &lt;/div&gt;
+    &lt;div class=&quot;pure-u-3-5&quot;&gt;
+        &lt;a href=&quot;/todos/&quot;&gt;&lt;h1&gt;Simple Todo&lt;/h1&gt;&lt;/a&gt;
+        &lt;div id=&quot;todos&quot;&gt;
+            {% block todo_list %}Todo List{% end %}
+        &lt;/div&gt;
+    &lt;/div&gt;
+&lt;/div&gt;
+{% block script %}{%end%}
+&lt;/body&gt;
+&lt;/html&gt;</code></pre>
+
+<p>If you want to look at it without Tornado, you can use <pre>python3 -m http.server 8000</pre> to
+    start a static server in the local directory.</p>
+
+
+<h3 id="templates-todo-list">Todo List Template</h3>
+
+<p>todo-list.html is the template which contains the todo list, as well
+as the Javascript Application.</p>
+<p>It "extends" base.html, inserting 'Todo List' into base.html's title, and
+    then inserts the bits between {% block todo_list %} and
+    the end of this section into base.html's body. </p>
+
+<pre><code class="language-javascript">{% extends &quot;base.html&quot; %}
+{% block title %}Todo List{% end %}
+{% block todo_list %}
+&lt;input data-bind=&quot;value: query, valueUpdate:'afterkeydown'&quot;
+    placeholder=&quot;What is your query?&quot;&gt;&lt;/input&gt;
+&lt;form action=&quot;&quot; method=&quot;post&quot; data-bind=&quot;attr:{action:action}&quot;&gt;
+&lt;table class=&quot;pure-table pure-table-horizontal&quot;&gt;
+&lt;br&gt;
+&lt;thead&gt;
+    &lt;tr&gt;
+        &lt;th&gt;Status&lt;/th&gt;
+        &lt;th&gt;Content&lt;/th&gt;
+    &lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody data-bind=&quot;template: { name: 'todo.html', foreach: filtered_todos, as:'todo'}&quot;&gt;
+    {% for todo in todos%}
+    {% module Todo(todo) %}
+    {% end %}
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;/form&gt;
+&lt;form class=&quot;pure-form&quot; action=&quot;/todos/&quot; method=&quot;post&quot;&gt;
+    &lt;fieldset&gt;
+        &lt;legend&gt;Add a todo&lt;/legend&gt;
+        &lt;label for=&quot;todo_is_done&quot;&gt;
+            &lt;input name=&quot;todo_is_done&quot; type=&quot;checkbox&quot;&gt; Done?
+        &lt;/label&gt;
+        &lt;input name=&quot;todo_content&quot; type=&quot;text&quot; class=&quot;pure-input-2-3&quot;
+            placeholder=&quot;What do you need to do?&quot;&gt;
+        &lt;button type=&quot;submit&quot; class=&quot;pure-button pure-button-primary&quot;&gt;
+            Add&lt;/button&gt;
+    &lt;/fieldset&gt;
+&lt;/form&gt;
+{%end%}</code></pre>
+
+<p>The most important part of the todo_list block is this section:
+<pre><code class="language-javascript">&lt;tbody data-bind=&quot;template: { name: 'todo.html', foreach: filtered_todos, as:'todo'}&quot;&gt;
+    {% for todo in todos%}
+    {% module Todo(todo) %}
+    {% end %}
+&lt;/tbody&gt;
+</code></pre>
+<p>This section uses both Knockout and Tornado to template in the list of todos.<p>
+<p>Tornado uses a for loop, which starts with "{% for todo in todos%}", then
+    uses the UIModule "Todo" to template in all the todo objects.</p>
+<p>Knockout uses a named template, which was also generated from todo.html, looping
+    over all todo values, with the binding 'data-bind= ...'.</p>
+<p>By using the same template for both Tornado and Knockout, there's less chance
+    of the templates getting out of sync. Using both Tornado and Knockout to
+    render the list means that the page will render much faster (because there's no
+    need for a new user to make multiple round trips), and it degrades gracefully,
+    but it still has the advantages of a single page web application.</p>
+<h2 id="javascript">Javascript</h2>
+
+<p>The Javascript is also contained in todo-list.html, but is in a different block.
+    This block will be inserted into the end of base.html.</p>
+<p>There migtht
+<pre><code class="language-javascript">{% block script %}
+&lt;script type=&quot;text/html&quot; id=&quot;todo.html&quot;&gt;
+{% module KOTemplate('todo.html') %}
+&lt;/script&gt;
+
+&lt;script type=&quot;text/javascript&quot; src=&quot;//cdnjs.cloudflare.com/ajax/libs/jquery/2.1.1/jquery.min.js&quot;&gt;&lt;/script&gt;
+&lt;script type=&quot;text/javascript&quot; src=&quot;//cdnjs.cloudflare.com/ajax/libs/sammy.js/0.7.4/sammy.min.js&quot;&gt;&lt;/script&gt;
+&lt;script type=&quot;text/javascript&quot; src=&quot;//cdnjs.cloudflare.com/ajax/libs/knockout/3.1.0/knockout-min.js&quot;&gt;&lt;/script&gt;
+&lt;script type=&quot;text/javascript&quot; src=&quot;//cdnjs.cloudflare.com/ajax/libs/knockout.mapping/2.4.1/knockout.mapping.js&quot;&gt;&lt;/script&gt;</code></pre>
+
+<h3 id="javacript-todo">Todo Object</h3>
+
+<p>Javascript lacks a real class system, but allows functional programming.
+    A major pitfall of Javascript is the way "this" behaves, it's dangerous to
+    use "this", because it may get rebound to something else inside the functions.
+    Declaring "self" is better than trying to use "this", as you can control
+    what it will be inside the functions.</p>
+<p>As in the Tornado section, I am using properties to compute things which will
+    go in the templates (like is_done_indicator), to avoid debugging template code.</p>
+
+
+<pre><code class="language-javascript">&lt;script type=&quot;text/javascript&quot;&gt;
+var Todo = function Todo(todo_obj, parent){
+    var self = todo_obj;
+    self.todo_is_done = ko.observable(self.todo_is_done);
+    self.todo_content = ko.observable(self.todo_content);
+
+    self.todo_backup = ko.toJS(self)
+
+    self.is_done_indicator = ko.computed(function(){
+        if (self.todo_is_done())
+        {
+            return '✓';
+        }
+        return '☐';
+    });
+
+    self.url = '/todos/'+self.todo_id;
+
+    self.is_edit = ko.computed(function(){
+        return self.todo_id==parent.editing_todo();
+    });</code></pre>
+<p>Knockout is a really fantastic framework for reacting to changing variables. Knockout
+    watches all the obserables, computeds, and observableArrays, and updates them
+    automatically when their dependents change.<p>
+<p>Rather than explicitly changing "self.is_edit", I can simply declare it as
+    a computed function, then whenever the parent's "editing_todo" observable
+    changes, the Todo will automatically update. The obserables will also update
+when the edit form's input value changes.</p>
+<p>This reactive programming is a great way to prevent bugs in interactive user
+    interfaces. If you manually change dependent variables when you update other parts
+    of the interface, it's just inviting bugs and high maintenance.</p>
+
+<pre><code class="language-javascript">        self.backup_watcher = ko.computed(function(){
+        if (!self.is_edit()){
+            ko.mapping.fromJS(self.todo_backup, {}, self);
+        }
+    })
+
+
+    return self;
+};</code></pre>
+<p>"backup_watcher", is a bit of a hack. When a todo is being edited, its values
+    will change. If you stop editing it, you want its values to reset.
+    Watching "todo_state" (automatically - it's "computed"),
+    and using Knockout's mapping extension makes this very simple.</p>
+<p>An "undo" function could be implemented in a similar way. A stack of mappings
+    could make an undo / redo system.</p>
+<h3 id="javacript-todo-list-view">Todo List View</h3>
+
+<p>The TodoListModel is the main model in Knockout. It contains an observableArray
+    of todos.</p>
+<p>The models is initially loaded (using ko.mapping) with the inlined JSON from Tornado. This saves
+    taking an extra round trip to the server to get the data.</p>
+
+<pre><code class="language-javascript">var TodoListModel = function TodoListModel() {
+    var self = this;
+
+    self.todos = ko.observableArray([])
+    self.editing_todo = ko.observable('');
+    var data = {'todos':{% raw todosJSON%}}
+    var mapping = {
+            'todos': {
+                    create: function(options) {
+                        return new Todo(options.data, self);
+                    }
+                }
+            }
+
+    ko.mapping.fromJS(data,mapping,self);</code></pre>
+
+
+<h3 id="javacript-todo-list-actions">Todo List Actions</h3>
+<p>Now, we'll add some behavior to TodoListView, using knockout, of course.</p>
+<h4>Search</h4>
+<p>The search box will work like this:<p>
+    <ol>
+        <li>When the user types a query into the box, self.query will automatically
+        update (since it was bound to the search box with data-bind).</li>
+        <li>The list of todos we display is actually filtered_todos, which will
+            be filtered every time the query changes.</li>
+        <li>Finally, we'll ask the server to come up with the search results, which
+            it will use to refresh the list of todos. This is pretty useless with
+            a short list of todos, but if there's long list that you want to update
+            (so not all the data will be in the client's browser), this gives you the
+            best of both worlds - fast filtering in the browser, and then the real
+            results when the server finally sends its response.</li>
+    </ol>
+<pre><code class="language-javascript">    self.action=ko.computed(function(){
+    return '/todos/'+self.editing_todo()});
+
+    self.query = ko.observable('');
+
+    self.filtered_todos = ko.computed(function(){
+      var q = self.query().toLocaleLowerCase();
+      return ko.utils.arrayFilter(self.todos(),
+          function(todo) {
+           return todo.todo_content().toLocaleLowerCase().indexOf(q)&gt;=0;
+          })
+      });
+
+    self.auto_search = ko.computed(function(){
+        $.get(&quot;/search/&quot;,$.param({'query':self.query()}), self.onRefresh);
+    }).extend({ rateLimit:
+                { timeout: 500, method: &quot;notifyWhenChangesStop&quot; } });</code></pre>
+    <p>Note, auto_search has been extended with a rate limiter, so it won't search
+        too frequently.</p>
+    <h4>Refreshing the todos, when there's new data</h4>
+    <p>We include a function to refresh the todos (on search, updates, etc)
+        when we get new data from the server, using ko.mapping</p>
+<pre><code class="language-javascript">    self.onRefresh = function(result){
+        ko.mapping.fromJS(result,mapping,self);
+    }</code></pre>
+
+
+<h3 id="javacript-routing">Routing</h3>
+
+<p>We could manually bind everything to "click", but there's a better way - Sammy.</p>
+<p>Sammy.js gives us a router, which helps us react to the user clicking on links.
+    jQuery then sends the ajax query to the server, and refreshes the models.</p>
+
+<pre><code class="language-javascript">    Sammy(function() {
+        this.get('/', function() {
+            self.editing_todo('')
+            $.get(&quot;/todos/&quot;,self.onRefresh);
+        });
+
+        this.get('/todos/', function() {
+            self.editing_todo('')
+            $.get(&quot;/todos/&quot;,self.onRefresh);
+        });
+
+        this.post('/todos/:todoId', function() {
+            $.post(&quot;/todos/&quot;+this.params.todoId,
+                $.param(this.params.toHash()));
+            self.editing_todo('')
+            this.redirect('/todos/')
+        });
+
+        this.get('/todos/:todoId', function() {
+            self.editing_todo(this.params.todoId)
+        });
+    }).run()
+    return this;
+};</code></pre>
+
+<p>Finally, we finish the script, and set it to run. I'm using a timeout,
+    to simulate a slow round trip to get the Javascript assets. This demonstrates
+    how important it is to write your app using progressive enhancement, and also
+    helps you see what happens when Knockout kicks in.</p>
+
+<pre><code class="language-javascript">window.setTimeout(
+        function(){ko.applyBindings(new TodoListModel())},1000
+    );
+&lt;/script&gt;
+{% end %}</code></pre>
+
+<h4>Debugging mapping</h4>
+<p>Mapping is a little more tricky than the rest of Knockout. I had two bugs
+    crop up while writing this, caused by mapping.</p>
+<p>First - the todos would
+    restore themselves from backups over when they shouldn't. I fixed it by
+    setting editing_todo to '' <em>before</em> refreshing the list, so when the
+    updated list arrived from the server.</p>
+<p>Also, I had to move 'editing_todo' <em>before</em> the creation of the mapping
+    on todolist, because otherwise the todos wouldn't be able to initialise, since
+    they rely on editing_todo.</p>
+<p>Manually setting things in Knockout is a little tricky, overall. It would probably
+    be more correct (and less error prone) to not use 'editing_todo', and to set
+    the property on individual todo items. The framework is certainly well worth
+    using though, especially if you strive for a cleaner design than mine (which
+    is jumping through hoops because it's using a form inside a table, so it can
+    only have one item in an editing state at a time).</p>
+    </div>
+</div>
+<script type="text/javascript" src="//cdnjs.cloudflare.com/ajax/libs/prism/0.0.1/prism.min.js"></script>
+</body>
+</html>

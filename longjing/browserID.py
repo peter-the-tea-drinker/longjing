@@ -4,7 +4,7 @@ import tornado.ioloop
 import tornado.httpclient
 import tornado.gen
 import tornado.web
-import ui_modules
+from . import ui_modules
 
 try:
     from urllib.parse import urlencode

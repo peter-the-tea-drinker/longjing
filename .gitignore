@@ -3,3 +3,5 @@
 dist
 build
 longjing.egg-info
+*__pycache__
+*.-todo.txt

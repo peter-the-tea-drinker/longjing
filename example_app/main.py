@@ -5,9 +5,10 @@ import tornado.web
 import re
 
 PORT = 8080
+OPEN_BROWSER = True
 
 def serve_profile(function, *args, **kwargs):
-    '''Serve a pofile on localhost:8080.
+    '''Profile a python function, and serve the results on localhost:8080.
 
     func: the function to profile
 
@@ -15,21 +16,33 @@ def serve_profile(function, *args, **kwargs):
 
     ** kwargs: the keyword arguments
 
-    For example: serve_profile(find_similar_files,'main.py', os.getcwd(), 5, '*', SLOW=True)
+    For example: serve_profile(find_similar_files,'filename_to_compare', '~/documents', 5, '*', SLOW=True)
     will profile this: find_similar_files('main.py', os.getcwd(), 5, '*', SLOW=True)
 
     By default, the port will be 8080. To change it it, do something like this:
 
     import main
     main.PORT=9000
+
+    It will automatically open a webbrowser tab, because profile is slow
+    so you'll want some kind of alert. If you don't want that, set main.OPEN_BROWSER
+    to false.
     '''
+    import webbrowser
     import cProfile, pstats, StringIO
+    print('profiling')
     pr = cProfile.Profile()
     pr.enable()
     pr.runcall(find_similar_files,'main.py', os.getcwd(), 5, '*', SLOW=True)
     pr.disable()
     s = StringIO.StringIO()
     stats = pstats.Stats(pr, stream=s)
+    print('finished profiling')
+    try:
+        print('Webbrowser might warn of some exception')
+        webbrowser.open('localhost:%s'%PORT)
+    except:
+        pass
     serve(stats)
 
 def serve(stats):

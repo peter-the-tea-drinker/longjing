@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% block title %}Todo List{% end %}
+{% block todo_list %}
+<input data-bind="value: query, valueUpdate:'afterkeydown'"
+    placeholder="What is your query?"></input>
+<form action="" method="post" data-bind="attr:{action:action}">
+<table class="pure-table pure-table-horizontal">
+<br>
+<thead>
+    <tr>
+        <th>Status</th>
+        <th>Content</th>
+    </tr>
+</thead>
+<tbody data-bind="template: { name: 'todo.html', foreach: filtered_todos, as:'todo'}">
+    {% for todo in todos%}
+    {% module Todo(todo) %}
+    {% end %}
+</tbody>
+</table>
+</form>
+<form class="pure-form" action="/todos/" method="post">
+    <fieldset>
+        <legend>Add a todo</legend>
+        <label for="todo_is_done">
+            <input name="todo_is_done" type="checkbox"> Done?
+        </label>
+        <input name="todo_content" type="text" class="pure-input-2-3"
+            placeholder="What do you need to do?">
+        <button type="submit" class="pure-button pure-button-primary">
+            Add</button>
+    </fieldset>
+</form>
+{%end%}
+{% block script %}
+<script type="text/html" id="todo.html">
+{% module KOTemplate('todo.html') %}
+</script>
+
+<script type="text/javascript" src="//cdnjs.cloudflare.com/ajax/libs/jquery/2.1.1/jquery.min.js"></script>
+<script type="text/javascript" src="//cdnjs.cloudflare.com/ajax/libs/sammy.js/0.7.4/sammy.min.js"></script>
+<script type="text/javascript" src="//cdnjs.cloudflare.com/ajax/libs/knockout/3.1.0/knockout-min.js"></script>
+<script type="text/javascript" src="//cdnjs.cloudflare.com/ajax/libs/knockout.mapping/2.4.1/knockout.mapping.js"></script>
+<script type="text/javascript">
+var Todo = function Todo(todo_obj, parent){
+    var self = todo_obj;
+    self.todo_is_done = ko.observable(self.todo_is_done);
+    self.todo_content = ko.observable(self.todo_content);
+
+    self.todo_backup = ko.toJS(self)
+
+    self.is_done_indicator = ko.computed(function(){
+        if (self.todo_is_done())
+        {
+            return '✓';
+        }
+        return '☐';
+    });
+
+    self.url = '/todos/'+self.todo_id;
+
+    self.is_edit = ko.computed(function(){
+        return self.todo_id==parent.editing_todo();
+    });
+    self.backup_watcher = ko.computed(function(){
+        if (!self.is_edit()){
+            ko.mapping.fromJS(self.todo_backup, {}, self);
+        }
+    })
+
+
+    return self;
+};
+var TodoListModel = function TodoListModel() {
+    var self = this;
+
+    self.todos = ko.observableArray([])
+    self.editing_todo = ko.observable('');
+
+    var data = {'todos':{% raw todosJSON%}}
+    var mapping = {
+            'todos': {
+                    create: function(options) {
+                        return new Todo(options.data, self);
+                    }
+                }
+            }
+
+    ko.mapping.fromJS(data,mapping,self);
+    self.action=ko.computed(function(){
+    return '/todos/'+self.editing_todo()});
+
+    self.query = ko.observable('');
+
+    self.filtered_todos = ko.computed(function(){
+      var q = self.query().toLocaleLowerCase();
+      return ko.utils.arrayFilter(self.todos(),
+          function(todo) {
+           return todo.todo_content().toLocaleLowerCase().indexOf(q)>=0;
+          })
+      });
+
+    self.auto_search = ko.computed(function(){
+        $.get("/search/",$.param({'query':self.query()}), self.onRefresh);
+    }).extend({ rateLimit:
+                { timeout: 500, method: "notifyWhenChangesStop" } });
+    self.onRefresh = function(result){
+        ko.mapping.fromJS(result,mapping,self);
+    }
+    Sammy(function() {
+        this.get('/', function() {
+            self.editing_todo('')
+            $.get("/todos/",self.onRefresh);
+        });
+
+        this.get('/todos/', function() {
+            self.editing_todo('')
+            $.get("/todos/",self.onRefresh);
+        });
+
+        this.post('/todos/:todoId', function() {
+            $.post("/todos/"+this.params.todoId,
+                $.param(this.params.toHash()));
+            self.editing_todo('')
+            this.redirect('/todos/')
+        });
+
+        this.get('/todos/:todoId', function() {
+            self.editing_todo(this.params.todoId)
+        });
+    }).run()
+    return this;
+};
+window.setTimeout(
+        function(){ko.applyBindings(new TodoListModel())},1000
+    );
+</script>
+{% end %}
